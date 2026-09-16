@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MAEC — Social Media & Marketing Analytics Dashboard (Next.js)
 
-## Getting Started
+Next.js replica of the IntoAEC marketing dashboard, configured for the **MAEC** website (`maec.ai`).
 
-First, run the development server:
+## Stack
+
+- **Next.js 14** (App Router)
+- **API Route Handlers** — same endpoints as the Express original
+- **Chart.js** dashboard UI (ported from the vanilla SPA)
+- Backend modules: Meta Graph, GA4, YouTube, GSC, CrUX, PageSpeed
+
+## Quickstart
 
 ```bash
+npm install
+cp .env.example .env
+# fill in MAEC credentials in .env
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API endpoints
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/data` | Live FB / IG / GA4 / YouTube payload |
+| POST | `/api/refresh` | Force refresh of the same payload |
+| GET | `/api/analytics/countries` | GA4 top countries |
+| GET | `/api/analytics/dimension-values` | GA4 dimension distinct values |
+| POST | `/api/analytics/filter` | Filtered GA4 metrics |
+| GET | `/api/gsc` | Search Console overview |
+| GET | `/api/gsc/sites` | List SC properties |
+| GET | `/api/gsc/page-indexing` | Pages + indexing helpers |
+| GET | `/api/gsc/indexing` | Indexing module |
+| POST | `/api/gsc/indexing/inspect` | Manual URL inspect |
+| POST | `/api/gsc/url-inspection` | Cached single-URL inspection |
+| GET | `/api/core-web-vitals` | CrUX field CWV |
+| GET/POST | `/api/pagespeed/analyze` | PageSpeed Insights |
 
-## Learn More
+## Project layout
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/app/          # Next.js pages + API routes
+src/components/   # Dashboard client shell
+src/lib/          # analysis, gsc, pagespeed, body HTML
+src/styles/       # dashboard.css
+public/js/        # dashboard-app.js + benchmarks_config.js
+data/             # GSC URL inspection cache
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Branding defaults use **MAEC** / `https://maec.ai/`. Override via `.env` (`GSC_SITE_URL`, `YOUTUBE_CHANNEL_HANDLE`, PageSpeed URL in the UI).
+- This is a functional replica of `marketing_dashboard`; wire MAEC API credentials before expecting live data.

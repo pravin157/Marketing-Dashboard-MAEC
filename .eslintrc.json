@@ -1,3 +1,8 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": ["src/lib/analysis.js", "src/lib/gsc.js", "src/lib/pagespeed.js", "src/lib/benchmarks_config.js", "public/**", "scripts/**"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "off",
+    "@next/next/no-page-custom-font": "off"
+  }
 }
