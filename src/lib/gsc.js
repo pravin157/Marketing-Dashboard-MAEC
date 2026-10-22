@@ -234,6 +234,9 @@ function handleGSCError(err, siteUrl = '') {
     return new Error('Google authorization has expired or is invalid. Please renew Google authorization in .env.');
   }
   if (status === 403) {
+    if (errMsg.includes('does not have sufficient permission') || errMsg.includes('permission')) {
+      return new Error(`Access denied for property '${siteUrl || 'requested site'}'. In Google Search Console, this Google account is registered as an unverified user ('siteUnverifiedUser'). To view Search Console data, ownership of '${siteUrl || 'requested site'}' must be verified in Google Search Console (via DNS TXT record or HTML tag), or the property owner must grant Full or Owner access to this account.`);
+    }
     return new Error(`Access denied for property '${siteUrl || 'requested site'}'. Verify that this Google account has permission in Google Search Console, or check that the property type matches (e.g. 'https://maec.ai/' vs 'sc-domain:maec.ai').`);
   }
   if (status === 404) {
@@ -303,7 +306,7 @@ export async function runGSC(customSiteUrl, startDate, endDate) {
       countries
     };
   } catch (err) {
-    throw handleGSCError(err);
+    throw handleGSCError(err, siteUrl);
   }
 }
 
