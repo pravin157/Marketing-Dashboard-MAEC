@@ -1,28 +1,28 @@
 
         :root {
-            --primary: #0066cc;
-            --primary-light: #e8f2ff;
-            --primary-mid: #cce0ff;
-            --teal: #00cccc;
-            --teal-light: #e0fafa;
-            --teal-mid: #b3f0f0;
-            --white: #ffffff;
-            --bg: #f5f7fb;
-            --bg2: #eef1f7;
-            --border: #dde3ef;
-            --border-light: #eef1f7;
-            --text: #0d1a2e;
-            --text2: #3a4a62;
-            --muted: #7080a0;
-            --muted2: #a0aec0;
-            --up: #12b47a;
-            --up-bg: #e6faf3;
-            --down: #e5403c;
-            --down-bg: #fdf0ef;
-            --warn: #f59e0b;
-            --warn-bg: #fef3c7;
-            --neutral: #6b7a99;
-            --neutral-bg: #f0f2f7;
+            --primary: #4c8dff;
+            --primary-light: rgba(76, 141, 255, .16);
+            --primary-mid: rgba(76, 141, 255, .38);
+            --teal: #2dd4bf;
+            --teal-light: rgba(45, 212, 191, .14);
+            --teal-mid: rgba(45, 212, 191, .32);
+            --white: #161c27;
+            --bg: #0c1017;
+            --bg2: #1c2433;
+            --border: #2a3346;
+            --border-light: #222a3a;
+            --text: #e7eef8;
+            --text2: #b7c3d6;
+            --muted: #8b9bb4;
+            --muted2: #6d7d96;
+            --up: #3dd68c;
+            --up-bg: rgba(61, 214, 140, .14);
+            --down: #f07178;
+            --down-bg: rgba(240, 113, 120, .14);
+            --warn: #f5b942;
+            --warn-bg: rgba(245, 185, 66, .16);
+            --neutral: #9aa8bf;
+            --neutral-bg: #1c2433;
             --radius: 12px;
             --radius-sm: 8px;
             --shadow: 0 1px 3px rgba(0, 102, 204, .06), 0 4px 16px rgba(0, 102, 204, .04);
@@ -31,8 +31,8 @@
             --font-display: 'Sora', sans-serif;
             --font-mono: 'DM Mono', monospace;
             --primary-text: var(--primary);
-            --teal-text: #007a7a;
-            --warn-text: #92400e;
+            --teal-text: #5eead4;
+            --warn-text: #f6c56b;
             --down-text: var(--down);
             --kpi-grad-1: linear-gradient(135deg, var(--primary), #0052aa);
             --kpi-grad-2: linear-gradient(135deg, var(--teal), #009999);
@@ -51,12 +51,75 @@
             padding: 0;
         }
 
+        html { color-scheme: dark; }
+
         body {
             font-family: var(--font);
             background: var(--bg);
             color: var(--text);
             font-size: 14px;
             line-height: 1.5;
+        }
+
+        .app-shell {
+            display: flex;
+            min-height: 100vh;
+            align-items: flex-start;
+        }
+
+        .sidebar {
+            width: 248px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            background: #10151e;
+            border-right: 1px solid var(--border);
+            padding: 22px 14px 28px;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 8px 22px;
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            font-family: var(--font-display);
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+        }
+
+        .brand-sub {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .side-label {
+            margin: 16px 10px 6px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--muted2);
+        }
+
+        .app-main {
+            flex: 1;
+            min-width: 0;
         }
 
         div,
@@ -237,8 +300,8 @@
 
         .refresh-toast {
             position: fixed;
-            top: 74px;
-            right: 32px;
+            bottom: 24px;
+            right: 24px;
             z-index: 500;
             background: var(--white);
             border: 1px solid var(--border);
@@ -373,43 +436,30 @@
             color: #fff;
         }
 
-        .nav-bar {
-            background: var(--white);
-            border-bottom: 1px solid var(--border);
-            padding: 0 32px;
-            display: flex;
-            align-items: center;
-            gap: 2px;
-            overflow-x: auto;
-            position: sticky;
-            top: 108px;
-            z-index: 100;
-        }
-
         .nav-tab {
             display: flex;
             align-items: center;
-            gap: 7px;
-            padding: 14px 16px 12px;
+            gap: 8px;
+            padding: 9px 12px;
+            margin-bottom: 2px;
             font-size: 13px;
             font-weight: 500;
-            color: var(--muted);
+            color: var(--text2);
             cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all .2s;
-            white-space: nowrap;
+            border-radius: 8px;
+            border: 1px solid transparent;
             user-select: none;
-            flex-shrink: 0;
         }
 
         .nav-tab:hover {
-            color: var(--primary);
-            background: var(--primary-light);
+            color: var(--text);
+            background: var(--bg2);
         }
 
         .nav-tab.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
+            color: #fff;
+            background: var(--primary-light);
+            border-color: var(--primary-mid);
             font-weight: 600;
         }
 
@@ -1338,12 +1388,20 @@
                 grid-template-columns: repeat(2, 1fr);
             }
 
+            .app-shell { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            .sidebar-nav { display: flex; gap: 6px; overflow-x: auto; }
+            .side-label { display: none; }
+            .nav-tab { margin-bottom: 0; white-space: nowrap; }
+
             .filter-bar {
                 top: 54px;
-            }
-
-            .nav-bar {
-                top: 100px;
             }
 
             .header {
@@ -1586,15 +1644,15 @@
             font-weight: 500;
             padding: 4px 10px;
             border-radius: 16px;
-            background: #e8f2ff;
-            color: #0052aa;
-            border: 1px solid #cce0ff;
+            background: var(--primary-light);
+            color: var(--primary);
+            border: 1px solid var(--primary-mid);
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
         }
 
         .ga-chip-category {
             font-weight: 600;
-            color: #0d1a2e;
+            color: var(--text);
         }
 
         .ga-chip-close {
@@ -1641,8 +1699,8 @@
             z-index: 400;
             width: 340px;
             max-width: 90vw;
-            background: #ffffff;
-            border: 1px solid #dadce0;
+            background: var(--white);
+            border: 1px solid var(--border);
             border-radius: 12px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.06);
             overflow: hidden;
@@ -1663,16 +1721,16 @@
 
         .ga-fd-header {
             padding: 12px 14px;
-            border-bottom: 1px solid #f1f3f4;
-            background: #fafafa;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
         }
 
         .ga-fd-search-box {
             display: flex;
             align-items: center;
             gap: 8px;
-            background: #ffffff;
-            border: 1px solid #dadce0;
+            background: var(--bg);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 6px 10px;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -1689,7 +1747,7 @@
             outline: none;
             font-family: var(--font);
             font-size: 13px;
-            color: #202124;
+            color: var(--text);
             background: transparent;
         }
 
@@ -1727,7 +1785,7 @@
         }
 
         .ga-fd-menu-item:hover {
-            background: #f1f3f4;
+            background: var(--bg2);
         }
 
         .ga-fd-item-icon {
@@ -1739,7 +1797,7 @@
             flex: 1;
             font-weight: 500;
             font-size: 13.5px;
-            color: #202124;
+            color: var(--text);
         }
 
         .ga-fd-item-arrow {
@@ -1757,13 +1815,13 @@
             font-weight: 600;
             color: #1a73e8;
             cursor: pointer;
-            border-bottom: 1px solid #f1f3f4;
-            background: #f8f9fa;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
             user-select: none;
         }
 
         .ga-fd-nav-back:hover {
-            background: #e8f0fe;
+            background: var(--primary-light);
         }
 
         .ga-fd-values-header {
@@ -1771,7 +1829,7 @@
             font-size: 11.5px;
             font-weight: 500;
             color: #5f6368;
-            border-bottom: 1px solid #f1f3f4;
+            border-bottom: 1px solid var(--border);
         }
 
         .ga-fd-loading {
@@ -1802,13 +1860,13 @@
             padding: 7px 16px;
             cursor: pointer;
             font-size: 13px;
-            color: #202124;
+            color: var(--text);
             user-select: none;
             transition: background 0.15s ease;
         }
 
         .ga-fd-value-checkbox-item:hover {
-            background: #f1f3f4;
+            background: var(--bg2);
         }
 
         .ga-fd-value-checkbox-item input[type="checkbox"] {
@@ -1828,8 +1886,8 @@
 
         .ga-fd-footer {
             padding: 10px 14px;
-            border-top: 1px solid #f1f3f4;
-            background: #fafafa;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
             display: flex;
             justify-content: flex-end;
         }

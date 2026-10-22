@@ -1,8 +1,35 @@
-<div class="header">
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-mark">MA</span>
+            <div>
+                <div class="brand-logo">MAEC</div>
+                <div class="brand-sub">Analytics</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="side-label">Overview</div>
+            <div class="nav-tab active" data-tab="overview"><span class="tab-icon">🏠</span>Overview</div>
+
+            <div class="side-label">Website</div>
+            <div class="nav-tab" data-tab="ga"><span class="tab-icon">🌐</span>Google Analytics</div>
+            <div class="nav-tab" data-tab="gsc"><span class="tab-icon">🔍</span>Search Console</div>
+            <div class="nav-tab" data-tab="page-performance"><span class="tab-icon">⚡</span>Page Performance</div>
+
+            <div class="side-label">Social</div>
+            <div class="nav-tab" data-tab="fb"><span class="tab-icon">📘</span>Facebook</div>
+            <div class="nav-tab" data-tab="ig"><span class="tab-icon">📸</span>Instagram</div>
+            <div class="nav-tab" data-tab="yt"><span class="tab-icon">▶️</span>YouTube</div>
+
+            <div class="side-label">Compare</div>
+            <div class="nav-tab" data-tab="weekly"><span class="tab-icon">📊</span>Weekly Comparison</div>
+        </nav>
+    </aside>
+    <div class="app-main">
+
+    <div class="header">
         <div class="header-left">
-            <span class="brand-logo">MAEC</span>
-            <div class="header-divider"></div>
-            <span class="header-title">Social Media Analytics</span>
+            <span class="header-title">Marketing dashboard</span>
         </div>
         <div class="header-right">
             <span class="data-source-pill source-waiting" id="dataSourcePill">⏳ No Data Yet</span>
@@ -16,7 +43,7 @@
 
     <div class="filter-bar">
         <span class="filter-label">📅 Date Range</span>
-        <div class="filter-pills">  
+        <div class="filter-pills">
             <button class="fpill" data-days="7">Last 7 Days</button>
             <button class="fpill" data-days="14">Last 14 Days</button>
             <button class="fpill active" data-days="31">Last 31 Days</button>
@@ -33,17 +60,6 @@
             <button class="apply-btn" id="applyCustom">Apply</button>
         </div>
         <span class="filter-info" id="filterInfo">Showing last 31 days</span>
-    </div>
-
-    <div class="nav-bar">
-        <div class="nav-tab active" data-tab="overview"><span class="tab-icon">🏠</span>Overview</div>
-        <div class="nav-tab" data-tab="ga"><span class="tab-icon">🌐</span>Google Analytics</div>
-        <div class="nav-tab" data-tab="fb"><span class="tab-icon">📘</span>Facebook</div>
-        <div class="nav-tab" data-tab="ig"><span class="tab-icon">📸</span>Instagram</div>
-        <div class="nav-tab" data-tab="yt"><span class="tab-icon">▶️</span>YouTube</div>
-        <div class="nav-tab" data-tab="gsc"><span class="tab-icon">🔍</span>Search Console</div>
-        <div class="nav-tab" data-tab="page-performance"><span class="tab-icon">⚡</span>Page Performance</div>
-        <div class="nav-tab" data-tab="weekly"><span class="tab-icon">📊</span>Weekly Comparison</div>
     </div>
 
     <div class="content">
@@ -928,7 +944,7 @@
                                         style="border-radius: 4px; padding: 4px 8px; font-size: 11px; width: 130px; height: 28px;"
                                         placeholder="Filter queries...">
                                     <select id="gscQueryPageSize" class="gsc-control-input"
-                                        style="border-radius: 4px; padding: 4px; font-size: 11px; width: 80px; height: 28px; background: #fff;">
+                                        style="border-radius: 4px; padding: 4px; font-size: 11px; width: 80px; height: 28px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
                                         <option value="5">5 / pg</option>
                                         <option value="10" selected>10 / pg</option>
                                         <option value="25">25 / pg</option>
@@ -1182,7 +1198,7 @@
                                         2.5s</span>
                                 </div>
                                 <div
-                                    style="height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #eef1f7; margin-bottom: 10px;">
+                                    style="height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #2a3346; margin-bottom: 10px;">
                                     <div id="vitalsLcpBarGood"
                                         style="background: #12b47a; width: 0%; transition: width 0.4s;"></div>
                                     <div id="vitalsLcpBarNi"
@@ -1231,7 +1247,7 @@
                                         200ms</span>
                                 </div>
                                 <div
-                                    style="height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #eef1f7; margin-bottom: 10px;">
+                                    style="height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #2a3346; margin-bottom: 10px;">
                                     <div id="vitalsInpBarGood"
                                         style="background: #12b47a; width: 0%; transition: width 0.4s;"></div>
                                     <div id="vitalsInpBarNi"
@@ -1280,7 +1296,7 @@
                                         0.10</span>
                                 </div>
                                 <div
-                                    style="height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #eef1f7; margin-bottom: 10px;">
+                                    style="height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #2a3346; margin-bottom: 10px;">
                                     <div id="vitalsClsBarGood"
                                         style="background: #12b47a; width: 0%; transition: width 0.4s;"></div>
                                     <div id="vitalsClsBarNi"
@@ -1481,7 +1497,7 @@
                                         <div style="width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #5f6368; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.15);"></div>
                                         <div style="width: 1.5px; height: 8px; background: #5f6368;"></div>
                                     </div>
-                                    <div style="height: 6px; border-radius: 3px; overflow: hidden; display: flex; gap: 2px; background: #eef1f7;">
+                                    <div style="height: 6px; border-radius: 3px; overflow: hidden; display: flex; gap: 2px; background: #2a3346;">
                                         <div id="psLcpBarGood" style="background: #12b47a; width: 0%; transition: width 0.4s; border-radius: 3px 0 0 3px;"></div>
                                         <div id="psLcpBarNi" style="background: #f59e0b; width: 0%; transition: width 0.4s;"></div>
                                         <div id="psLcpBarPoor" style="background: #e5403c; width: 0%; transition: width 0.4s; border-radius: 0 3px 3px 0;"></div>
@@ -1515,7 +1531,7 @@
                                         <div style="width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #5f6368; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.15);"></div>
                                         <div style="width: 1.5px; height: 8px; background: #5f6368;"></div>
                                     </div>
-                                    <div style="height: 6px; border-radius: 3px; overflow: hidden; display: flex; gap: 2px; background: #eef1f7;">
+                                    <div style="height: 6px; border-radius: 3px; overflow: hidden; display: flex; gap: 2px; background: #2a3346;">
                                         <div id="psInpBarGood" style="background: #12b47a; width: 0%; transition: width 0.4s; border-radius: 3px 0 0 3px;"></div>
                                         <div id="psInpBarNi" style="background: #f59e0b; width: 0%; transition: width 0.4s;"></div>
                                         <div id="psInpBarPoor" style="background: #e5403c; width: 0%; transition: width 0.4s; border-radius: 0 3px 3px 0;"></div>
@@ -1549,7 +1565,7 @@
                                         <div style="width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #5f6368; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.15);"></div>
                                         <div style="width: 1.5px; height: 8px; background: #5f6368;"></div>
                                     </div>
-                                    <div style="height: 6px; border-radius: 3px; overflow: hidden; display: flex; gap: 2px; background: #eef1f7;">
+                                    <div style="height: 6px; border-radius: 3px; overflow: hidden; display: flex; gap: 2px; background: #2a3346;">
                                         <div id="psClsBarGood" style="background: #12b47a; width: 0%; transition: width 0.4s; border-radius: 3px 0 0 3px;"></div>
                                         <div id="psClsBarNi" style="background: #f59e0b; width: 0%; transition: width 0.4s;"></div>
                                         <div id="psClsBarPoor" style="background: #e5403c; width: 0%; transition: width 0.4s; border-radius: 0 3px 3px 0;"></div>
@@ -1604,4 +1620,6 @@
             <span>MAEC Analytics Dashboard</span>
             <span id="footerRange">No data loaded — click Refresh Live Data</span>
         </div>
+    </div>
+    </div>
     </div>

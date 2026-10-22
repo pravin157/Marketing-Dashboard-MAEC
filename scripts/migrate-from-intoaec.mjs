@@ -12,7 +12,8 @@ function brand(text) {
     .replace(/intoaec\.ai/g, 'maec.ai')
     .replace(/intoaec\.com/g, 'maec.ai')
     .replace(/@intoaec/g, '@maec')
-    .replace(/intoaec/gi, 'maec');
+    .replace(/intoaec/gi, 'maec')
+    .replace(/<span class="brand-mark">IA<\/span>/g, '<span class="brand-mark">MA</span>');
 }
 
 const dirs = [

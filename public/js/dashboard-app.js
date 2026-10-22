@@ -11,6 +11,8 @@ function __maecOnReady(fn) {
         let GA4_DAILY = [];
         let GA4_CHANNELS = [];
         let GA4_PAGES = [];
+        let gaRangeTotals = null;
+        let gaRangeTotalsSeq = 0;
         let FB_POSTS = [];
         let IG_POSTS = [];
         let YT_VIDEOS = [];
@@ -27,21 +29,41 @@ function __maecOnReady(fn) {
         let REF_DATE = new Date();
         let activeFilter = { days: 31, start: null, end: null };
 
+        function localIso(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
         function getDateRange() {
             if (activeFilter.days === 'all') return { start: '2000-01-01', end: REF_DATE.toISOString().slice(0, 10) };
             if (activeFilter.days === 'custom') return { start: activeFilter.start, end: activeFilter.end };
-            const end = new Date(REF_DATE), start = new Date(REF_DATE);
+            // GA4 "Last N days" is N complete days ending yesterday. Today is still open,
+            // so including it (Oct 16–22) under-counts versus the GA4 card (Oct 15–21).
+            const end = new Date();
+            end.setDate(end.getDate() - 1);
+            const start = new Date(end);
             start.setDate(start.getDate() - (activeFilter.days - 1));
-            return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+            return { start: localIso(start), end: localIso(end) };
         }
         function inRange(d) { const { start, end } = getDateRange(); return d >= start && d <= end; }
+        function formatPrettyDate(iso) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return iso || '';
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const [year, month, day] = iso.split('-');
+            return `${Number(day)} ${months[Number(month) - 1]} ${year}`;
+        }
         function rangeLabel() {
             if (activeFilter.days === 'all') return 'All Time';
-            if (activeFilter.days === 'custom') return `${activeFilter.start} → ${activeFilter.end}`;
+            if (activeFilter.days === 'custom') return `${formatPrettyDate(activeFilter.start)} → ${formatPrettyDate(activeFilter.end)}`;
             return `Last ${activeFilter.days} Days`;
         }
 
         // ── Charts ────────────────────────────────────────────────────────────────────
+        if (window.Chart) {
+            Chart.defaults.color = '#8b9bb4';
+            Chart.defaults.borderColor = '#2a3346';
+        }
         const charts = {};
         const C = {
             blue: '#0066cc', teal: '#00cccc', up: '#12b47a', warn: '#f59e0b',
@@ -57,7 +79,7 @@ function __maecOnReady(fn) {
         const baseOpts = (showLegend = false) => ({
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: showLegend, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } }, tooltip: { mode: 'index', intersect: false } },
-            scales: { x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#7080a0', maxRotation: 45 } }, y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 }, color: '#7080a0' } } }
+            scales: { x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#7080a0', maxRotation: 45 } }, y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 }, color: '#7080a0' } } }
         });
         function fmt(n) { return (n || 0).toLocaleString(); }
 
@@ -67,6 +89,84 @@ function __maecOnReady(fn) {
             const content = document.getElementById(prefix + 'Content');
             if (empty) empty.style.display = hasData ? 'none' : '';
             if (content) content.style.display = hasData ? '' : 'none';
+        }
+
+        function previousSpan(start, end) {
+            const s = new Date(start + 'T00:00:00Z');
+            const e = new Date(end + 'T00:00:00Z');
+            const dur = e.getTime() - s.getTime();
+            const prevEnd = new Date(s.getTime() - 86400000);
+            const prevStart = new Date(prevEnd.getTime() - dur);
+            const iso = d => d.toISOString().slice(0, 10);
+            return { start: iso(prevStart), end: iso(prevEnd) };
+        }
+
+        function visibleGaSpan() {
+            if (activeFilter.days === 'all' && GA4_DAILY.length) {
+                return { start: GA4_DAILY[0].date, end: GA4_DAILY[GA4_DAILY.length - 1].date };
+            }
+            const { start, end } = getDateRange();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '') || !/^\d{4}-\d{2}-\d{2}$/.test(end || '')) return null;
+            return { start, end };
+        }
+
+        function currentGaTotalsKey() {
+            const current = visibleGaSpan();
+            if (!current || typeof weekBuckets !== 'function') return '';
+            const previous = previousSpan(current.start, current.end);
+            const weeks = weekBuckets();
+            return JSON.stringify({
+                current,
+                previous,
+                thisWeek: { start: weeks.thisStart, end: weeks.thisEnd },
+                lastWeek: { start: weeks.lastStart, end: weeks.lastEnd },
+                filters: (typeof activeGAFilters === 'undefined') ? {} : activeGAFilters
+            });
+        }
+
+        function readyGaPeriod(name) {
+            if (!gaRangeTotals || gaRangeTotals.status !== 'ready') return null;
+            if (gaRangeTotals.key !== currentGaTotalsKey()) return null;
+            return gaRangeTotals.ranges[name] || null;
+        }
+
+        function scheduleGaRangeTotals() {
+            if (!GA4_DAILY.length) return;
+            const key = currentGaTotalsKey();
+            if (!key) return;
+            if (gaRangeTotals && gaRangeTotals.key === key && (gaRangeTotals.status === 'ready' || gaRangeTotals.status === 'loading' || gaRangeTotals.status === 'error')) return;
+
+            const parsed = JSON.parse(key);
+            const seq = ++gaRangeTotalsSeq;
+            gaRangeTotals = { key, status: 'loading', ranges: null };
+            const filters = (typeof activeGAFilters === 'undefined') ? {} : activeGAFilters;
+
+            fetch('/api/analytics/totals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filters,
+                    ranges: [
+                        { name: 'current', startDate: parsed.current.start, endDate: parsed.current.end },
+                        { name: 'previous', startDate: parsed.previous.start, endDate: parsed.previous.end },
+                        { name: 'thisWeek', startDate: parsed.thisWeek.start, endDate: parsed.thisWeek.end },
+                        { name: 'lastWeek', startDate: parsed.lastWeek.start, endDate: parsed.lastWeek.end }
+                    ]
+                })
+            })
+                .then(res => res.json().then(json => ({ ok: res.ok, json })))
+                .then(({ ok, json }) => {
+                    if (seq !== gaRangeTotalsSeq) return;
+                    if (!ok || !json.success) throw new Error(json.error || 'GA4 totals failed');
+                    gaRangeTotals = { key, status: 'ready', ranges: json.data };
+                    renderAll();
+                })
+                .catch(err => {
+                    if (seq !== gaRangeTotalsSeq) return;
+                    console.error('GA4 range totals failed:', err.message);
+                    gaRangeTotals = { key, status: 'error', ranges: null };
+                    renderAll();
+                });
         }
 
         // ── Render ────────────────────────────────────────────────────────────────────
@@ -112,30 +212,40 @@ function __maecOnReady(fn) {
             if (document.getElementById('ytSubtitle')) document.getElementById('ytSubtitle').textContent = `Published ${SUMMARY.ytPublishedAt || '—'} · ${fmt(SUMMARY.ytTotalVideos)} videos total`;
             // ── GA4 ──
             if (hasGA) {
+                scheduleGaRangeTotals();
                 const gaF = GA4_DAILY.filter(d => inRange(d.date));
-                const gaUsers = gaF.reduce((s, d) => s + d.users, 0);
-                const gaNewUsers = gaF.reduce((s, d) => s + d.newUsers, 0);
-                const gaViews = gaF.reduce((s, d) => s + d.views, 0);
-                const gaSess = gaF.reduce((s, d) => s + d.sessions, 0);
-                const gaConv = gaF.reduce((s, d) => s + d.conversions, 0);
+                const summedUsers = gaF.reduce((s, d) => s + d.users, 0);
+                const summedNewUsers = gaF.reduce((s, d) => s + d.newUsers, 0);
+                const summedViews = gaF.reduce((s, d) => s + d.views, 0);
+                const summedSess = gaF.reduce((s, d) => s + d.sessions, 0);
+                const summedConv = gaF.reduce((s, d) => s + d.conversions, 0);
+                const period = readyGaPeriod('current');
+                const gaUsers = period ? period.users : summedUsers;
+                const gaNewUsers = period ? period.newUsers : summedNewUsers;
+                const gaViews = period ? period.views : summedViews;
+                const gaSess = period ? period.sessions : summedSess;
+                const gaConv = period ? period.conversions : summedConv;
                 const gaDays = gaF.length;
+                const totalsPending = !period && gaRangeTotals?.status !== 'error';
 
-                document.getElementById('kpi-users').textContent = fmt(gaUsers);
-                document.getElementById('kpi-users-sub').textContent = `${gaDays} days`;
+                const shownSpan = visibleGaSpan() || { start, end };
+                const shownDates = `${formatPrettyDate(shownSpan.start)} → ${formatPrettyDate(shownSpan.end)}`;
+                document.getElementById('kpi-users').textContent = totalsPending ? '…' : fmt(gaUsers);
+                document.getElementById('kpi-users-sub').textContent = shownDates;
                 const kpiViewsEl = document.getElementById('kpi-views');
-                if (kpiViewsEl) kpiViewsEl.textContent = fmt(gaViews);
+                if (kpiViewsEl) kpiViewsEl.textContent = totalsPending ? '…' : fmt(gaViews);
                 const kpiViewsSubEl = document.getElementById('kpi-views-sub');
-                if (kpiViewsSubEl) kpiViewsSubEl.textContent = `${gaDays} days`;
-                document.getElementById('ga-users').textContent = fmt(gaUsers);
-                document.getElementById('ga-users-d').textContent = `${gaDays} days`;
-                document.getElementById('ga-new').textContent = fmt(gaNewUsers);
-                document.getElementById('ga-new-pct').textContent = gaUsers > 0 ? `${((gaNewUsers / gaUsers) * 100).toFixed(1)}% new` : '—';
-                document.getElementById('ga-pv').textContent = fmt(gaViews);
-                document.getElementById('ga-pv-d').textContent = `${gaDays} days`;
-                document.getElementById('ga-sess').textContent = fmt(gaSess);
-                document.getElementById('ga-sess-d').textContent = gaUsers > 0 ? `${(gaSess / gaUsers).toFixed(2)}/user` : '—';
-                document.getElementById('ga-conv').textContent = fmt(gaConv);
-                document.getElementById('ga-conv-d').textContent = gaUsers > 0 ? `${((gaConv / gaUsers) * 100).toFixed(1)}% rate` : '—';
+                if (kpiViewsSubEl) kpiViewsSubEl.textContent = shownDates;
+                document.getElementById('ga-users').textContent = totalsPending ? '…' : fmt(gaUsers);
+                document.getElementById('ga-users-d').textContent = shownDates;
+                document.getElementById('ga-new').textContent = totalsPending ? '…' : fmt(gaNewUsers);
+                document.getElementById('ga-new-pct').textContent = !totalsPending && gaUsers > 0 ? `${((gaNewUsers / gaUsers) * 100).toFixed(1)}% new` : '—';
+                document.getElementById('ga-pv').textContent = totalsPending ? '…' : fmt(gaViews);
+                document.getElementById('ga-pv-d').textContent = shownDates;
+                document.getElementById('ga-sess').textContent = totalsPending ? '…' : fmt(gaSess);
+                document.getElementById('ga-sess-d').textContent = !totalsPending && gaUsers > 0 ? `${(gaSess / gaUsers).toFixed(2)}/user` : '—';
+                document.getElementById('ga-conv').textContent = totalsPending ? '…' : fmt(gaConv);
+                document.getElementById('ga-conv-d').textContent = !totalsPending && gaUsers > 0 ? `${((gaConv / gaUsers) * 100).toFixed(1)}% rate` : '—';
 
                 const gaSubText = `${start} → ${end} · ${gaDays} days`;
                 document.getElementById('ovChartSub').textContent = gaSubText;
@@ -157,12 +267,12 @@ function __maecOnReady(fn) {
                     datasets: [{ label: 'Avg Duration (s)', data: durF.map(d => Math.round(d.dur)), backgroundColor: `${C.up}bb`, borderRadius: 4 }]
                 }, {
                     ...baseOpts(), indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-                    scales: { x: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }
+                    scales: { x: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }
                 });
 
                 if (GA4_CHANNELS.length) {
                     const chOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 10 } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()}` } } } };
-                    const chDS = { labels: GA4_CHANNELS.map(c => c.channel), datasets: [{ data: GA4_CHANNELS.map(c => c.sessions), backgroundColor: C.mixed, borderWidth: 2, borderColor: '#fff' }] };
+                    const chDS = { labels: GA4_CHANNELS.map(c => c.channel), datasets: [{ data: GA4_CHANNELS.map(c => c.sessions), backgroundColor: C.mixed, borderWidth: 2, borderColor: '#161c27' }] };
                     makeChart('overviewChannelChart', 'doughnut', chDS, chOpts);
                     makeChart('gaChannelDoughnut', 'doughnut', chDS, { ...chOpts, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()}` } } } });
                     makeChart('gaChannelBar', 'bar', {
@@ -301,6 +411,18 @@ function __maecOnReady(fn) {
 
                         const currVals = calcMetrics(currentRows);
                         const prevVals = calcMetrics(previousRows);
+                        const periodCurrent = readyGaPeriod('current');
+                        const periodPrevious = readyGaPeriod('previous');
+                        if (periodCurrent) {
+                            currVals.users = periodCurrent.users;
+                            currVals.views_per_user = periodCurrent.users > 0 ? (periodCurrent.views / periodCurrent.users) : 0;
+                            currVals.avg_engagement_time = periodCurrent.avgSessionDuration;
+                        }
+                        if (periodPrevious) {
+                            prevVals.users = periodPrevious.users;
+                            prevVals.views_per_user = periodPrevious.users > 0 ? (periodPrevious.views / periodPrevious.users) : 0;
+                            prevVals.avg_engagement_time = periodPrevious.avgSessionDuration;
+                        }
 
                         // Format metric values for display
                         const formatVal = (key, val, isEmpty = false) => {
@@ -420,8 +542,8 @@ function __maecOnReady(fn) {
                 const fbTC = {};
                 fbF.forEach(p => { fbTC[p.type] = (fbTC[p.type] || 0) + 1; });
                 const doughOpts = (pos = 'right') => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: pos, labels: { font: { size: 10 }, boxWidth: 10 } } } });
-                makeChart('fbTypeChart', 'doughnut', { labels: Object.keys(fbTC), datasets: [{ data: Object.values(fbTC), backgroundColor: C.mixed.slice(0, Object.keys(fbTC).length), borderWidth: 2, borderColor: '#fff' }] }, doughOpts());
-                makeChart('fbPostTypeChart', 'doughnut', { labels: Object.keys(fbTC), datasets: [{ data: Object.values(fbTC), backgroundColor: C.mixed.slice(0, Object.keys(fbTC).length), borderWidth: 2, borderColor: '#fff' }] }, doughOpts('right'));
+                makeChart('fbTypeChart', 'doughnut', { labels: Object.keys(fbTC), datasets: [{ data: Object.values(fbTC), backgroundColor: C.mixed.slice(0, Object.keys(fbTC).length), borderWidth: 2, borderColor: '#161c27' }] }, doughOpts());
+                makeChart('fbPostTypeChart', 'doughnut', { labels: Object.keys(fbTC), datasets: [{ data: Object.values(fbTC), backgroundColor: C.mixed.slice(0, Object.keys(fbTC).length), borderWidth: 2, borderColor: '#161c27' }] }, doughOpts('right'));
 
                 const fbTop = [...fbF].sort((a, b) => b.likes - a.likes).slice(0, 10);
                 makeChart('fbTopPostsChart', 'bar', {
@@ -476,7 +598,7 @@ function __maecOnReady(fn) {
                 makeChart('igEngChart', 'bar', {
                     labels: igTopOv.map((_, i) => `#${i + 1}`),
                     datasets: [{ label: 'Likes', data: igTopOv.map(p => p.likes), backgroundColor: C.mixed.map(c => c + 'bb'), borderRadius: 4 }]
-                }, { ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 9 } } } } });
+                }, { ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { grid: { color: '#2a3346' }, ticks: { font: { size: 9 } } } } });
 
                 makeChart('igLikesTrendChart', 'line', {
                     labels: igF.map(p => p.date.slice(5)),
@@ -485,14 +607,14 @@ function __maecOnReady(fn) {
 
                 const igTC = { REELS: 0, FEED: 0 };
                 igF.forEach(p => { igTC[p.type] = (igTC[p.type] || 0) + 1; });
-                makeChart('igTypeChart', 'doughnut', { labels: ['Reels', 'Feed Posts'], datasets: [{ data: [igTC.REELS, igTC.FEED], backgroundColor: [C.purple, C.teal], borderWidth: 2, borderColor: '#fff' }] },
+                makeChart('igTypeChart', 'doughnut', { labels: ['Reels', 'Feed Posts'], datasets: [{ data: [igTC.REELS, igTC.FEED], backgroundColor: [C.purple, C.teal], borderWidth: 2, borderColor: '#161c27' }] },
                     { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 12 }, boxWidth: 12 } } } });
 
                 const reels = igF.filter(p => p.type === 'REELS'), feed = igF.filter(p => p.type === 'FEED');
                 const rAvg = reels.length ? +(reels.reduce((s, p) => s + p.likes, 0) / reels.length).toFixed(1) : 0;
                 const fAvg = feed.length ? +(feed.reduce((s, p) => s + p.likes, 0) / feed.length).toFixed(1) : 0;
                 makeChart('igTypeEngChart', 'bar', { labels: ['Avg Likes — Reels', 'Avg Likes — Feed'], datasets: [{ data: [rAvg, fAvg], backgroundColor: [`${C.purple}bb`, `${C.teal}bb`], borderRadius: 6 }] },
-                    { ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 } } } } });
+                    { ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 } } } } });
 
                 const igTbl = document.getElementById('igTopPostsTable');
                 const igND = document.getElementById('igNoData');
@@ -535,12 +657,12 @@ function __maecOnReady(fn) {
                     datasets: [{ label: 'Views', data: ytChron.map(v => v.views), backgroundColor: ytChron.map(v => v.type === 'SHORT' ? `${C.warn}cc` : `${C.down}cc`), borderRadius: 4 }]
                 }, {
                     ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, callbacks: { title: items => { const v = ytChron[items[0].dataIndex]; return (v.title || '').length > 30 ? v.title.slice(0, 30) + '…' : v.title; }, label: ctx => `Views: ${ctx.parsed.y}` } } },
-                    scales: { x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 60 } }, y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 } } } }
+                    scales: { x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 60 } }, y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 } } } }
                 });
 
                 const ytTC = { SHORT: 0, LONG: 0 };
                 ytF.forEach(v => { ytTC[v.type] = (ytTC[v.type] || 0) + 1; });
-                makeChart('ytTypeChart', 'doughnut', { labels: ['Shorts', 'Long-form'], datasets: [{ data: [ytTC.SHORT, ytTC.LONG], backgroundColor: [C.warn, C.down], borderWidth: 2, borderColor: '#fff' }] },
+                makeChart('ytTypeChart', 'doughnut', { labels: ['Shorts', 'Long-form'], datasets: [{ data: [ytTC.SHORT, ytTC.LONG], backgroundColor: [C.warn, C.down], borderWidth: 2, borderColor: '#161c27' }] },
                     { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 12 }, boxWidth: 12 } } } });
 
                 const ytTbl = document.getElementById('ytVideosTable');
@@ -576,7 +698,7 @@ function __maecOnReady(fn) {
                 makeChart('audienceChart', 'bar', {
                     labels: ['IG Followers', 'FB Fans', 'YT Subs'],
                     datasets: [{ data: [SUMMARY.igFollowers || 0, SUMMARY.fbFans || 0, SUMMARY.ytSubscribers || 0], backgroundColor: [C.blue, C.teal, C.down], borderRadius: 6 }]
-                }, { ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 11 } } }, y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 } } } } });
+                }, { ...baseOpts(), plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 11 } } }, y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 } } } } });
             }
 
             renderWeeklyComparison();
@@ -618,8 +740,12 @@ function __maecOnReady(fn) {
             const igLast = sumW(IG_POSTS, 'date', ['likes', 'comments'], lastStart, lastEnd);
             const ytThis = sumW(YT_VIDEOS, 'date', ['views', 'likes', 'comments'], thisStart, thisEnd);
             const ytLast = sumW(YT_VIDEOS, 'date', ['views', 'likes', 'comments'], lastStart, lastEnd);
-            const gaThis = sumW(GA4_DAILY, 'date', ['users', 'views', 'sessions', 'conversions'], thisStart, thisEnd);
-            const gaLast = sumW(GA4_DAILY, 'date', ['users', 'views', 'sessions', 'conversions'], lastStart, lastEnd);
+            const gaThisSum = sumW(GA4_DAILY, 'date', ['users', 'views', 'sessions', 'conversions'], thisStart, thisEnd);
+            const gaLastSum = sumW(GA4_DAILY, 'date', ['users', 'views', 'sessions', 'conversions'], lastStart, lastEnd);
+            const thisWeekTotals = readyGaPeriod('thisWeek');
+            const lastWeekTotals = readyGaPeriod('lastWeek');
+            const gaThis = thisWeekTotals ? { users: thisWeekTotals.users, views: thisWeekTotals.views, sessions: thisWeekTotals.sessions, conversions: thisWeekTotals.conversions } : gaThisSum;
+            const gaLast = lastWeekTotals ? { users: lastWeekTotals.users, views: lastWeekTotals.views, sessions: lastWeekTotals.sessions, conversions: lastWeekTotals.conversions } : gaLastSum;
 
             document.getElementById('weeklyCards').innerHTML = `
     <div class="wk-card"><div class="wk-card-head"><span class="wk-icon">📘</span><h3>Facebook</h3></div>
@@ -711,7 +837,7 @@ function __maecOnReady(fn) {
                 const deviceColors = { desktop: '#0a66c2', mobile: '#1b8fe0', tablet: '#3aa3e3' };
                 makeChart('liDeviceChart', 'doughnut', {
                     labels: LI_DEVICES.map(d => d.device.charAt(0).toUpperCase() + d.device.slice(1)),
-                    datasets: [{ data: LI_DEVICES.map(d => d.sessions), backgroundColor: LI_DEVICES.map(d => deviceColors[d.device.toLowerCase()] || '#7080a0'), borderWidth: 2, borderColor: '#fff' }]
+                    datasets: [{ data: LI_DEVICES.map(d => d.sessions), backgroundColor: LI_DEVICES.map(d => deviceColors[d.device.toLowerCase()] || '#7080a0'), borderWidth: 2, borderColor: '#161c27' }]
                 }, { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 10 } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()} sessions` } } } });
 
                 // Bench list
@@ -903,7 +1029,7 @@ function __maecOnReady(fn) {
                 plugins: { legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } }, tooltip: { mode: 'index', intersect: false } },
                 scales: {
                     x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#7080a0', maxRotation: 45 } },
-                    y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 }, color: '#34a853' }, position: 'left', title: { display: true, text: 'Clicks', font: { size: 10 }, color: '#34a853' } },
+                    y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 }, color: '#34a853' }, position: 'left', title: { display: true, text: 'Clicks', font: { size: 10 }, color: '#34a853' } },
                     y1: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#4285f4' }, position: 'right', title: { display: true, text: 'Impressions', font: { size: 10 }, color: '#4285f4' } }
                 }
             });
@@ -936,7 +1062,7 @@ function __maecOnReady(fn) {
                 plugins: { legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } }, tooltip: { mode: 'index', intersect: false } },
                 scales: {
                     x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#7080a0', maxRotation: 45 } },
-                    y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 }, color: '#34a853' }, position: 'left', title: { display: true, text: 'Clicks', font: { size: 10 }, color: '#34a853' } },
+                    y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 }, color: '#34a853' }, position: 'left', title: { display: true, text: 'Clicks', font: { size: 10 }, color: '#34a853' } },
                     y1: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#4285f4' }, position: 'right', title: { display: true, text: 'Impressions', font: { size: 10 }, color: '#4285f4' } }
                 }
             });
@@ -969,7 +1095,7 @@ function __maecOnReady(fn) {
                 plugins: { legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } }, tooltip: { mode: 'index', intersect: false } },
                 scales: {
                     x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#7080a0', maxRotation: 45 } },
-                    y: { grid: { color: '#eef1f7' }, ticks: { font: { size: 10 }, color: '#f59e0b' }, position: 'left', title: { display: true, text: 'CTR (%)', font: { size: 10 }, color: '#f59e0b' } },
+                    y: { grid: { color: '#2a3346' }, ticks: { font: { size: 10 }, color: '#f59e0b' }, position: 'left', title: { display: true, text: 'CTR (%)', font: { size: 10 }, color: '#f59e0b' } },
                     y1: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#e5403c' }, position: 'right', reverse: true, title: { display: true, text: 'Position (lower=better)', font: { size: 10 }, color: '#e5403c' } }
                 }
             });
@@ -979,7 +1105,7 @@ function __maecOnReady(fn) {
                 const devColors = ['#34a853', '#4285f4', '#f59e0b', '#e5403c'];
                 makeChart('gscDeviceChart', 'doughnut', {
                     labels: d.devices.map(v => v.device.charAt(0).toUpperCase() + v.device.slice(1).toLowerCase()),
-                    datasets: [{ data: d.devices.map(v => v.clicks), backgroundColor: devColors, borderWidth: 2, borderColor: '#fff' }]
+                    datasets: [{ data: d.devices.map(v => v.clicks), backgroundColor: devColors, borderWidth: 2, borderColor: '#161c27' }]
                 }, {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)} clicks` } } },
@@ -1001,7 +1127,7 @@ function __maecOnReady(fn) {
                 const cColors = ['#0066cc', '#00cccc', '#34a853', '#f59e0b', '#e5403c', '#7c3aed', '#0088ee', '#ff6b35', '#12b47a', '#a855f7'];
                 makeChart('gscCountryChart', 'doughnut', {
                     labels: d.countries.map(v => v.country),
-                    datasets: [{ data: d.countries.map(v => v.clicks), backgroundColor: cColors, borderWidth: 2, borderColor: '#fff' }]
+                    datasets: [{ data: d.countries.map(v => v.clicks), backgroundColor: cColors, borderWidth: 2, borderColor: '#161c27' }]
                 }, {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: true, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)} clicks` } } },
@@ -1765,6 +1891,8 @@ function __maecOnReady(fn) {
             if (payload.IG_POSTS?.length) IG_POSTS = payload.IG_POSTS;
             if (payload.YT_VIDEOS?.length) YT_VIDEOS = payload.YT_VIDEOS;
             if (payload.summary) SUMMARY = { ...SUMMARY, ...payload.summary };
+            gaRangeTotals = null;
+            gaRangeTotalsSeq++;
             REF_DATE = computeRefDate();
             dataLoaded = true;
 
@@ -2320,7 +2448,7 @@ function __maecOnReady(fn) {
             const ctx = document.getElementById(chartId);
             if (!ctx) return;
 
-            let borderCol = '#eef1f7'; // Neutral background circle color
+            let borderCol = '#2a3346'; // Neutral background circle color
             if (score != null) {
                 if (score >= 90) borderCol = '#12b47a';
                 else if (score >= 50) borderCol = '#f59e0b';
@@ -2625,7 +2753,7 @@ function __maecOnReady(fn) {
             // Prepend "Select All" option
             const selectAllItem = document.createElement('label');
             selectAllItem.className = 'ga-fd-value-checkbox-item select-all-item';
-            selectAllItem.style.borderBottom = '1px solid #f1f3f4';
+            selectAllItem.style.borderBottom = '1px solid var(--border)';
             selectAllItem.style.paddingBottom = '9px';
             selectAllItem.style.marginBottom = '4px';
             selectAllItem.style.fontWeight = '600';
