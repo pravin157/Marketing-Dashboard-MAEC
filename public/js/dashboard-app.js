@@ -206,7 +206,9 @@ function __maecOnReady(fn) {
 
                         GA4_PAGES.forEach((p, i) => {
                             const tr = document.createElement('tr');
-                            const col3Val = (p.secondaryDimKey && p.secondaryDimVal) ? p.secondaryDimVal : p.title;
+                            const rawTitle = p.title || '';
+                            const cleanTitle = rawTitle.replace(/IntoAEC/g, 'MAEC').replace(/intoaec/gi, 'MAEC');
+                            const col3Val = (p.secondaryDimKey && p.secondaryDimVal) ? p.secondaryDimVal : cleanTitle;
                             tr.innerHTML = `<td><span class="rank-badge">${i + 1}</span></td><td><span class="page-name">${p.path}</span></td><td style="font-size:11px;color:var(--text2);">${col3Val}</td><td style="text-align:right;">${fmt(p.views)}</td><td style="text-align:right;">${p.duration}s</td>`;
                             gaTP.appendChild(tr);
                         });

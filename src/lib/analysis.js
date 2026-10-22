@@ -29,6 +29,28 @@ function normalizePropertyId(value) {
   return normalized.replace(/^properties\//i, '');
 }
 
+export function cleanPageTitle(title) {
+  if (typeof title !== 'string') return '';
+  return title
+    .replace(/IntoAEC/g, 'MAEC')
+    .replace(/intoaec/gi, 'MAEC');
+}
+
+export function getMaecHostFilter() {
+  const env = getActiveEnv();
+  const hostPattern = env.GA_HOST_FILTER || process.env.GA_HOST_FILTER || 'maec';
+  return {
+    filter: {
+      fieldName: 'hostName',
+      stringFilter: {
+        matchType: 'CONTAINS',
+        value: hostPattern,
+        caseSensitive: false
+      }
+    }
+  };
+}
+
 const GRAPH_API_VERSION = 'v20.0';
 const BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 const YOUTUBE_ANALYTICS_SCOPES = [
@@ -51,6 +73,7 @@ export function getActiveEnv() {
     ACCESS_TOKEN: env.ACCESS_TOKEN || '',
     GA_PROPERTY_ID: env.GA_PROPERTY_ID || '',
     NORMALIZED_GA_PROPERTY_ID: normalizePropertyId(env.GA_PROPERTY_ID),
+    GA_HOST_FILTER: env.GA_HOST_FILTER || '',
     YOUTUBE_CHANNEL_HANDLE: env.YOUTUBE_CHANNEL_HANDLE || '',
     YOUTUBE_CHANNEL_ID: env.YOUTUBE_CHANNEL_ID || '',
     YOUTUBE_API_KEY: env.YOUTUBE_API_KEY || '',
@@ -337,6 +360,7 @@ function processIgMedia(rawMedia) {
 async function getGA4Metrics(startDate = '30daysAgo', endDate = 'today') {
   if (!analyticsData) return [];
   try {
+    const maecHostFilter = getMaecHostFilter();
     const [res, demoRes] = await Promise.all([
       analyticsData.properties.runReport({
         property: `properties/${NORMALIZED_GA_PROPERTY_ID}`,
@@ -347,7 +371,8 @@ async function getGA4Metrics(startDate = '30daysAgo', endDate = 'today') {
             { name: 'activeUsers' }, { name: 'newUsers' }, { name: 'sessions' },
             { name: 'screenPageViews' }, { name: 'bounceRate' },
             { name: 'averageSessionDuration' }, { name: 'conversions' }
-          ]
+          ],
+          dimensionFilter: maecHostFilter
         }
       }),
       analyticsData.properties.runReport({
@@ -356,16 +381,19 @@ async function getGA4Metrics(startDate = '30daysAgo', endDate = 'today') {
           dateRanges: [{ startDate, endDate }],
           dimensions: [{ name: 'date' }],
           metrics: [{ name: 'screenPageViews' }],
-          dimensionFilter: {
-            filter: {
-              fieldName: 'pagePath',
-              stringFilter: {
-                matchType: 'CONTAINS',
-                value: 'demo',
-                caseSensitive: false
+          dimensionFilter: combineDimensionFilters(
+            {
+              filter: {
+                fieldName: 'pagePath',
+                stringFilter: {
+                  matchType: 'CONTAINS',
+                  value: 'demo',
+                  caseSensitive: false
+                }
               }
-            }
-          }
+            },
+            maecHostFilter
+          )
         }
       }).catch(err => { console.error('❌ GA4 demo metrics:', err.message); return { data: {} }; })
     ]);
@@ -400,6 +428,7 @@ async function getGA4TrafficSources(startDate = '30daysAgo', endDate = 'today') 
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [{ name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: getMaecHostFilter(),
         limit: 10
       }
     });
@@ -417,6 +446,7 @@ async function getGA4TopPages(startDate = '365daysAgo', endDate = 'today') {
         dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
         metrics: [{ name: 'screenPageViews' }, { name: 'averageSessionDuration' }],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+        dimensionFilter: getMaecHostFilter(),
         limit: 15
       }
     });
@@ -434,6 +464,7 @@ async function getGA4TopCountries(startDate = '2020-01-01', endDate = 'today') {
         dimensions: [{ name: 'country' }],
         metrics: [{ name: 'screenPageViews' }],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+        dimensionFilter: getMaecHostFilter(),
         limit: 15
       }
     });
@@ -711,13 +742,11 @@ function shapeDashboardPayload({ fbData, igData, gaData, ytData, liData = null, 
     }));
   }
 
-  // GA4 top pages — this was previously computed (getGA4TopPages) but never
-  // attached to the dashboard payload, so the "Top Pages" tables in the
-  // Overview and Google Analytics tabs always rendered empty.
+  // GA4 top pages
   if (gaData?.pages?.length) {
     payload.GA4_PAGES = gaData.pages.map(r => ({
       path: r.dimensionValues[0].value,
-      title: r.dimensionValues[1].value,
+      title: cleanPageTitle(r.dimensionValues[1].value),
       views: +r.metricValues[0].value,
       duration: +parseFloat(r.metricValues[1].value).toFixed(1)
     }));
@@ -832,6 +861,7 @@ export async function getGA4DimensionValues(dimensionKey, startDate = '90daysAgo
         dimensions: [{ name: fieldName }],
         metrics: [{ name: 'activeUsers' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+        dimensionFilter: getMaecHostFilter(),
         limit: 250
       }
     });
@@ -912,7 +942,8 @@ export async function getFilteredGA4Data(filters = {}, startDate = '90daysAgo', 
     throw new Error('GA4 not configured — check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, and GA_PROPERTY_ID in .env');
   }
 
-  const dimensionFilter = buildGA4DimensionFilter(filters);
+  const userDimensionFilter = buildGA4DimensionFilter(filters);
+  const dimensionFilter = combineDimensionFilters(getMaecHostFilter(), userDimensionFilter);
 
   // Extract active filter dimensions to include as secondary dimensions if present
   const activeFilterKeys = Object.keys(filters).filter(k => filters[k] && (Array.isArray(filters[k]) ? filters[k].length > 0 : Boolean(filters[k])));
@@ -1027,7 +1058,7 @@ export async function getFilteredGA4Data(filters = {}, startDate = '90daysAgo', 
 
   const GA4_PAGES = pagesRows.map(r => ({
     path: r.dimensionValues[0]?.value || '',
-    title: r.dimensionValues[1]?.value || '',
+    title: cleanPageTitle(r.dimensionValues[1]?.value || ''),
     secondaryDimKey: activeFilterKeys[0] || null,
     secondaryDimVal: primarySecondaryDimKey && r.dimensionValues[2] ? r.dimensionValues[2].value : (activeFilterKeys.length > 0 && Array.isArray(filters[activeFilterKeys[0]]) ? filters[activeFilterKeys[0]].join(', ') : null),
     views: +r.metricValues[0]?.value || 0,
@@ -1160,6 +1191,5 @@ export async function runAnalytics() {
     if (!hasYtAuth) missing.push('API key/OAuth');
     warnings.push(`YT skipped: missing ${missing.join(' and ')}`);
   }
-
   return shapeDashboardPayload({ fbData, igData, gaData, ytData, liData: liData ?? null, warnings });
 }
