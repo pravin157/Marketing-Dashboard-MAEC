@@ -220,6 +220,7 @@ function __maecOnReady(fn) {
                 const summedSess = gaF.reduce((s, d) => s + d.sessions, 0);
                 const summedConv = gaF.reduce((s, d) => s + d.conversions, 0);
                 const period = readyGaPeriod('current');
+                const prevPeriod = readyGaPeriod('previous');
                 const gaUsers = period ? period.users : summedUsers;
                 const gaNewUsers = period ? period.newUsers : summedNewUsers;
                 const gaViews = period ? period.views : summedViews;
@@ -230,20 +231,75 @@ function __maecOnReady(fn) {
 
                 const shownSpan = visibleGaSpan() || { start, end };
                 const shownDates = `${formatPrettyDate(shownSpan.start)} → ${formatPrettyDate(shownSpan.end)}`;
+
+                // Calculate period-over-period comparison values (Sessions Δ & Users Δ)
+                const prevSpan = previousSpan(shownSpan.start, shownSpan.end);
+                const prevGaF = GA4_DAILY.filter(d => d.date >= prevSpan.start && d.date <= prevSpan.end);
+                const prevSummedSess = prevGaF.reduce((s, d) => s + (d.sessions || 0), 0);
+                const prevSummedUsers = prevGaF.reduce((s, d) => s + (d.users || 0), 0);
+                const prevSess = (prevPeriod && typeof prevPeriod.sessions === 'number') ? prevPeriod.sessions : prevSummedSess;
+                const prevUsers = (prevPeriod && typeof prevPeriod.users === 'number') ? prevPeriod.users : prevSummedUsers;
+
+                function calcDeltaPill(curr, prev, pending) {
+                    if (pending) {
+                        return { text: '…', cls: 'delta-neutral', title: 'Loading prior period comparison...' };
+                    }
+                    if (prev === undefined || prev === null || prev <= 0) {
+                        if (curr > 0) {
+                            return { text: '+100% vs prior', cls: 'delta-up', title: `${fmt(curr)} vs 0 prior period` };
+                        }
+                        return { text: '— vs prior', cls: 'delta-neutral', title: 'No prior period data' };
+                    }
+                    const diff = curr - prev;
+                    const pct = (diff / prev) * 100;
+                    const absPct = Math.abs(pct).toFixed(1);
+                    if (Math.abs(pct) < 0.1) {
+                        return { text: '0.0% vs prior', cls: 'delta-neutral', title: `${fmt(curr)} vs ${fmt(prev)} prior (${diff >= 0 ? '+' : ''}${fmt(diff)})` };
+                    }
+                    if (pct > 0) {
+                        return { text: `+${absPct}% vs prior`, cls: 'delta-up', title: `${fmt(curr)} vs ${fmt(prev)} prior (+${fmt(diff)})` };
+                    }
+                    return { text: `-${absPct}% vs prior`, cls: 'delta-down', title: `${fmt(curr)} vs ${fmt(prev)} prior (${fmt(diff)})` };
+                }
+
+                const sessDelta = calcDeltaPill(gaSess, prevSess, totalsPending);
+                const usersDelta = calcDeltaPill(gaUsers, prevUsers, totalsPending);
                 document.getElementById('kpi-users').textContent = totalsPending ? '…' : fmt(gaUsers);
-                document.getElementById('kpi-users-sub').textContent = shownDates;
+                const kpiUsersSubEl = document.getElementById('kpi-users-sub');
+                if (kpiUsersSubEl) {
+                    kpiUsersSubEl.innerHTML = `<span class="metric-delta ${usersDelta.cls}" style="padding:1px 6px;font-size:10.5px;">${usersDelta.text}</span> <span style="opacity:0.8;font-size:11px;">(${fmt(prevUsers)} prior)</span>`;
+                    kpiUsersSubEl.title = `${usersDelta.title} · ${shownDates}`;
+                }
                 const kpiViewsEl = document.getElementById('kpi-views');
                 if (kpiViewsEl) kpiViewsEl.textContent = totalsPending ? '…' : fmt(gaViews);
                 const kpiViewsSubEl = document.getElementById('kpi-views-sub');
                 if (kpiViewsSubEl) kpiViewsSubEl.textContent = shownDates;
                 document.getElementById('ga-users').textContent = totalsPending ? '…' : fmt(gaUsers);
-                document.getElementById('ga-users-d').textContent = shownDates;
+                const gaUsersDeltaEl = document.getElementById('ga-users-delta');
+                if (gaUsersDeltaEl) {
+                    gaUsersDeltaEl.textContent = usersDelta.text;
+                    gaUsersDeltaEl.className = `metric-delta ${usersDelta.cls}`;
+                    gaUsersDeltaEl.title = usersDelta.title;
+                }
+                document.getElementById('ga-users-d').textContent = prevUsers > 0 ? `prior: ${fmt(prevUsers)}` : shownDates;
                 document.getElementById('ga-new').textContent = totalsPending ? '…' : fmt(gaNewUsers);
                 document.getElementById('ga-new-pct').textContent = !totalsPending && gaUsers > 0 ? `${((gaNewUsers / gaUsers) * 100).toFixed(1)}% new` : '—';
                 document.getElementById('ga-pv').textContent = totalsPending ? '…' : fmt(gaViews);
                 document.getElementById('ga-pv-d').textContent = shownDates;
                 document.getElementById('ga-sess').textContent = totalsPending ? '…' : fmt(gaSess);
-                document.getElementById('ga-sess-d').textContent = !totalsPending && gaUsers > 0 ? `${(gaSess / gaUsers).toFixed(2)}/user` : '—';
+                const gaSessDeltaEl = document.getElementById('ga-sess-delta');
+                if (gaSessDeltaEl) {
+                    gaSessDeltaEl.textContent = sessDelta.text;
+                    gaSessDeltaEl.className = `metric-delta ${sessDelta.cls}`;
+                    gaSessDeltaEl.title = sessDelta.title;
+                }
+                const gaSessDEl = document.getElementById('ga-sess-d');
+                if (gaSessDEl) {
+                    gaSessDEl.textContent = !totalsPending && gaUsers > 0 
+                        ? `${(gaSess / gaUsers).toFixed(2)}/user · prior: ${fmt(prevSess)}` 
+                        : (prevSess > 0 ? `prior: ${fmt(prevSess)}` : 'avg sessions');
+                    gaSessDEl.title = `Previous period (${formatPrettyDate(prevSpan.start)} → ${formatPrettyDate(prevSpan.end)}): ${fmt(prevSess)} sessions`;
+                }
                 document.getElementById('ga-conv').textContent = totalsPending ? '…' : fmt(gaConv);
                 document.getElementById('ga-conv-d').textContent = !totalsPending && gaUsers > 0 ? `${((gaConv / gaUsers) * 100).toFixed(1)}% rate` : '—';
 
